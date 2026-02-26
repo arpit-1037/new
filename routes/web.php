@@ -6,6 +6,10 @@ use App\Http\Controllers\TestController;
 use App\Agents\GeminiAssistant;
 use Illuminate\Support\Facades\Log;
 
+use App\Http\Controllers\Api\AiGenerateController;
+
+Route::post('/ai/generate', AiGenerateController::class);
+
 Route::get('/ai-test', function (Request $request) {
     $prompt = $request->string('prompt')->toString() ?: 'Reply with: AI working with Gemini';
     $model = $request->string('model')->toString() ?: null;
