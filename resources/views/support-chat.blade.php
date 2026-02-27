@@ -66,7 +66,10 @@
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.message || "Failed to start conversation");
-    conversationId = data.conversation_id;
+    conversationId = Number.parseInt(data.conversation_id, 10);
+    if (!Number.isInteger(conversationId) || conversationId < 1) {
+      throw new Error("Invalid integer conversation_id");
+    }
   }
 
   async function sendMessage() {
@@ -92,7 +95,7 @@
           "Accept": "application/json"
         },
         body: JSON.stringify({
-          conversation_id: conversationId,
+          conversation_id: Number.parseInt(conversationId, 10),
           message: text,
           model: "gemini-3-flash-preview"
         })
