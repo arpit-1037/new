@@ -39,7 +39,7 @@
     <div id="output" class="box" style="display:none;"></div>
 
 <script>
-const csrf = document.querySelector('meta[name="csrf-token"]').content;
+  const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
 const promptEl = document.getElementById('prompt');
 const modelEl  = document.getElementById('model');

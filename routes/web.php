@@ -8,6 +8,12 @@ use Illuminate\Support\Facades\Log;
 
 use App\Http\Controllers\Api\AiGenerateController;
 
+use App\Http\Controllers\SupportChatController;
+
+Route::get('/support-chat', [SupportChatController::class, 'index'])->name('support.chat');
+Route::post('/support-chat/start', [SupportChatController::class, 'start'])->name('support.chat.start');
+Route::post('/support-chat/send', [SupportChatController::class, 'send'])->name('support.chat.send');
+
 Route::view('/ai', 'ai'); // UI page
 
 Route::post('/ai/generate', function (Request $request) {
