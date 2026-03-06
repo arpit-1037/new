@@ -19,6 +19,12 @@ return [
     'default_for_transcription' => 'openai',
     'default_for_embeddings' => 'openai',
     'default_for_reranking' => 'cohere',
+    'support_chat' => [
+        'provider_failover' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SUPPORT_CHAT_PROVIDER_FAILOVER', 'gemini,openai,anthropic,groq'))
+        ))),
+    ],
 
     /*
     |--------------------------------------------------------------------------

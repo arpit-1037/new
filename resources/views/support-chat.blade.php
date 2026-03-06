@@ -59,9 +59,13 @@
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
+  const startUrl = "{{ route('support.chat.start', [], false) }}";
+  const sendUrl = "{{ route('support.chat.send', [], false) }}";
+
   async function startConversation() {
-    const res = await fetch("{{ route('support.chat.start') }}", {
+    const res = await fetch(startUrl, {
       method: "POST",
+      credentials: "same-origin",
       headers: { "X-CSRF-TOKEN": csrf, "Accept": "application/json" }
     });
     const data = await res.json();
@@ -87,8 +91,9 @@
     sendBtn.disabled = true;
 
     try {
-      const res = await fetch("{{ route('support.chat.send') }}", {
+      const res = await fetch(sendUrl, {
         method: "POST",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           "X-CSRF-TOKEN": csrf,
