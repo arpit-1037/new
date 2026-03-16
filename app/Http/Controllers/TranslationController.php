@@ -41,12 +41,12 @@ class TranslationController extends Controller
                 'exception' => get_class($e),
             ]);
 
-            return view('translation', [
-                'inputText' => $validated['text'],
-                'errorMessage' => $e->getMessage(),
-            ])->withErrors([
-                'text' => 'Translation failed. Please try again.',
-            ]);
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'text' => 'Translation failed. Please try again.',
+                ])
+                ->with('errorMessage', $e->getMessage());
         }
     }
 }

@@ -112,9 +112,9 @@
         <button type="submit" class="btn">Generate Translations</button>
     </form>
 
-    @if (!empty($errorMessage))
+    @if (session('errorMessage'))
         <div class="server-error">
-            {{ $errorMessage }}
+            {{ session('errorMessage') }}
         </div>
     @endif
 
