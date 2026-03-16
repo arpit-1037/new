@@ -6,9 +6,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Agents\GeminiAssistant;
+use App\Services\Ai\ProviderFailoverService;
 
 class SupportChatController extends Controller
 {
+    public function __construct(
+        protected ProviderFailoverService $providerFailoverService
+    ) {
+    }
+
     public function index()
     {
         return view('support-chat');
@@ -17,7 +23,7 @@ class SupportChatController extends Controller
     public function start()
     {
         $conversationId = (int) DB::table('agent_conversations')->insertGetId([
-            'user_id' => null,        // keep null for now (no auth)
+            'user_id' => null,
             'title' => 'Support Chat',
             'created_at' => now(),
             'updated_at' => now(),
@@ -42,7 +48,6 @@ class SupportChatController extends Controller
         $userMessage = $validated['message'];
         $model = $validated['model'] ?? null;
 
-        // Optional safety: check conversation exists.
         $existsStartedAt = microtime(true);
         $conversationExists = DB::table('agent_conversations')
             ->where('id', $conversationId)
@@ -59,21 +64,19 @@ class SupportChatController extends Controller
         try {
             $now = now();
 
-            // Save USER message.
             $insertUserStartedAt = microtime(true);
             DB::table('agent_conversation_messages')->insert([
                 'conversation_id' => $conversationId,
-                'user_id' => null,               // or auth()->id()
-                'agent' => null,                 // can keep null for user
+                'user_id' => null,
+                'agent' => null,
                 'role' => 'user',
                 'content' => $userMessage,
-                'attachments' => null,           // or '[]' if you want JSON style
+                'attachments' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
             $insertUserMs = (int) round((microtime(true) - $insertUserStartedAt) * 1000);
 
-            // Load last 12 messages for context.
             $historyStartedAt = microtime(true);
             $history = DB::table('agent_conversation_messages')
                 ->select('role', 'content')
@@ -91,14 +94,13 @@ class SupportChatController extends Controller
                 $historyText .= "{$roleLabel}: {$m->content}\n";
             }
 
-            // RAG-lite v2: token-based KB matching.
             $kbStartedAt = microtime(true);
             $tokens = collect(preg_split('/\W+/u', mb_strtolower($userMessage)))
                 ->filter(fn ($t) => mb_strlen($t) >= 3)
                 ->unique()
                 ->take(8)
                 ->values();
-            // dd($tokens);
+
             $kbRows = collect();
             if ($tokens->isNotEmpty()) {
                 $kbRows = DB::table('support_knowledge')
@@ -140,16 +142,17 @@ SYS;
                 . "\n\nConversation:\n" . $historyText
                 . "\nAssistant:";
 
-            $providerChain = $this->supportChatProviderChain($model);
+            $providerChain = $this->providerFailoverService->chain(
+                'ai.support_chat.provider_failover',
+                $model
+            );
 
-            // Call AI with provider failover (rate-limit / overloaded providers auto-fallback).
             $aiStartedAt = microtime(true);
             $ai = GeminiAssistant::make()->prompt($finalPrompt, provider: $providerChain);
             $assistantText = trim($ai->text ?? '');
             $assistantProvider = $ai->meta->provider ?? (array_key_first($providerChain) ?: 'gemini');
             $aiMs = (int) round((microtime(true) - $aiStartedAt) * 1000);
 
-            // Save ASSISTANT message and bump conversation timestamp.
             $persistStartedAt = microtime(true);
             DB::transaction(function () use ($conversationId, $assistantText, $assistantProvider, $now) {
                 DB::table('agent_conversation_messages')->insert([
@@ -205,43 +208,5 @@ SYS;
                 'message' => $e->getMessage(),
             ], 500);
         }
-    }
-
-    private function supportChatProviderChain(?string $requestedModel): array
-    {
-        $configured = config('ai.support_chat.provider_failover', ['gemini', 'openai', 'anthropic', 'groq']);
-
-        if (is_string($configured)) {
-            $configured = explode(',', $configured);
-        }
-
-        $providers = collect($configured)
-            ->map(fn ($provider) => strtolower(trim((string) $provider)))
-            ->filter()
-            ->unique()
-            ->filter(fn (string $provider) => is_array(config("ai.providers.{$provider}")))
-            ->filter(fn (string $provider) => $this->providerIsReadyForFailover($provider))
-            ->values();
-
-        if ($providers->isEmpty()) {
-            $defaultProvider = strtolower((string) config('ai.default', 'gemini'));
-
-            return [$defaultProvider => $requestedModel ?: null];
-        }
-
-        return $providers
-            ->mapWithKeys(fn (string $provider, int $index) => [
-                $provider => ($index === 0 && filled($requestedModel)) ? $requestedModel : null,
-            ])
-            ->all();
-    }
-
-    private function providerIsReadyForFailover(string $provider): bool
-    {
-        if ($provider === 'ollama') {
-            return filled((string) config('ai.providers.ollama.url'));
-        }
-
-        return filled(config("ai.providers.{$provider}.key"));
     }
 }

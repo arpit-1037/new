@@ -2,50 +2,24 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
-use App\Http\Controllers\TestController;
-use App\Agents\GeminiAssistant;
 use Illuminate\Support\Facades\Log;
 
+use App\Agents\GeminiAssistant;
+use App\Http\Controllers\TestController;
 use App\Http\Controllers\Api\AiGenerateController;
-
 use App\Http\Controllers\SupportChatController;
+use App\Http\Controllers\TranslationController;
 
 Route::get('/support-chat', [SupportChatController::class, 'index'])->name('support.chat');
 Route::post('/support-chat/start', [SupportChatController::class, 'start'])->name('support.chat.start');
-Route::post('/support-chat/send', [SupportChatController::class, 'send'])->name('support.chat.send')->middleware('throttle:20,1');
+Route::post('/support-chat/send', [SupportChatController::class, 'send'])
+    ->name('support.chat.send')
+    ->middleware('throttle:20,1');
 
-Route::view('/ai', 'ai'); // UI page
+Route::get('/translation', [TranslationController::class, 'index'])->name('translation.index');
+Route::post('/translation', [TranslationController::class, 'generate'])->name('translation.generate');
 
-Route::post('/ai/generate', function (Request $request) {
-    $validated = $request->validate([
-        'prompt' => ['required', 'string', 'min:1', 'max:8000'],
-        'model'  => ['nullable', 'string', 'max:100'],
-    ]);
-
-    try {
-        $response = GeminiAssistant::make()->prompt(
-            $validated['prompt'],
-            model: $validated['model'] ?? null
-        );
-
-        return response()->json([
-            'provider' => $response->meta->provider,
-            'model'    => $response->meta->model,
-            'text'     => $response->text,
-        ]);
-    } catch (\Throwable $e) {
-        Log::error('GEMINI AI ERROR', [
-            'message' => $e->getMessage(),
-            'exception' => get_class($e),
-        ]);
-
-        return response()->json([
-            'error' => get_class($e),
-            'message' => $e->getMessage(),
-        ], 500);
-    }
-})->name('ai.generate');
-
+Route::view('/ai', 'ai');
 Route::post('/ai/generate', AiGenerateController::class)->name('ai.generate');
 
 Route::get('/ai-test', function (Request $request) {
